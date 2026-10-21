@@ -1,4 +1,6 @@
-# Architecture and evaluation contract
+# Version 1 archive: architecture and evaluation contract
+
+This file documents the original general analytics dashboard. The current product and evaluation contract is `V2-METHODOLOGY.md`; use that document for launch planning, product/country workflows, uploads and the current forecast models. Version 1 reports remain only as separately labeled academic references.
 
 ## Product and scope
 

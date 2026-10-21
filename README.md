@@ -1,32 +1,47 @@
-# SmartRetail Intelligence
+# SmartRetail — Product & Launch Decision Studio
 
-A Vercel-ready retail decision-support application built from seven supplied datasets. The dashboard contains ten views: overview, sales, RFM segmentation, retention cohorts, market basket pairs, purchase-intention simulator, wholesale spending profiles, sales forecasts, model evaluation, and data/methodology.
+An explainable product–market tool, ready for Vercel. Seven pages focus on business decisions instead of displaying every available dataset column.
 
-## Run the application
+## What you can do
 
-Requires Node.js 20 or later. No npm dependencies or API keys are needed.
+- **Plan a launch:** describe a new product and planned unit price. Review and confirm comparable products before seeing country-level 28-day unit/revenue scenarios. Recognized product types must match. Unrelated or insufficient evidence triggers an explicit refusal to estimate.
+- **Product Explorer:** search stable product codes/names, inspect country sales/returns, view supported 28-day unit forecasts and historical bundles.
+- **Market Explorer:** compare products in an observed country with minimum-order filters.
+- **Compare & Export:** shortlist product–country pairs and download an evidence brief or comparison.
+- **Your Data:** read CSV/XLSX privately in the browser, validate records, and explicitly switch to an isolated company-data workspace. Product/market explorers, comparisons and analogue launch scenarios use the uploaded data. Uploaded data is not mixed with the benchmark.
+- **Model Lab:** five forecast candidates, chronological validation/calibration/test, actual-vs-predicted plot, interval coverage, held-out new-product cohorts, and same-case country baselines. Supporting Version 1 conversion results are separately labeled.
+- **Data & Methods:** visible cleaning, identity, formulas, fingerprints and limitations.
+
+## Honest launch estimates
+
+New-product scenarios assume comparable historical exposure and distribution. They are **not** promises of launch demand. The analogue country model did not demonstrate an improvement over its simple country baseline, so the app does not claim a reliable “launch first” winner. It presents evidence-based pilot comparisons instead.
+
+The launch unit range is the spread of comparable-product rates, not a confidence interval. Revenue is scenario units × entered price, without elasticity, profit or marketing assumptions. A country absent from the active data cannot be recommended. Historical records are from 2009–2011, not live market intelligence.
+
+The new-product backtest uses newly appearing product codes, which are not verified launches; never-sold products are absent. Model Lab states these limits. The full contract is [docs/V2-METHODOLOGY.md](docs/V2-METHODOLOGY.md).
+
+## Run locally
+
+Requires Node.js 20+. Dependencies are pinned by `package-lock.json`.
 
 ```powershell
+npm ci
 npm test
 npm run build
 npm run dev
 ```
 
-Open http://127.0.0.1:3000. `dev` serves `public`; `build` copies validated, already generated assets to `dist`. It does not retrain models. The committed report is calculated from the supplied files, not invented sample values.
+Open http://127.0.0.1:3000. Build prepares the self-hosted Excel reader and copies public assets to `dist`; no model training happens during deployment. Run the build before local preview to enable Excel upload.
 
-## Deploy to Vercel
+## Deploy on Vercel
 
-1. Import `Rehan-2024/SmartRetailing` into your Vercel account.
-2. Select the repository root, Framework Preset **Other**, Build Command `npm run build`, Output Directory `dist`.
-3. Deploy. `vercel.json` contains these settings and security headers. No environment variables or Python runtime are required for hosting.
+Import this repository. Set Framework Preset **Other**, Build Command `npm run build`, Output Directory `dist`. `vercel.json` already declares these settings and security headers. No API keys or Python runtime are required to serve the site.
 
-Official configuration reference: https://vercel.com/docs/builds/configure-a-build
+Official configuration: https://vercel.com/docs/builds/configure-a-build
 
-Raw source datasets are not required in the deployment. The public report is an immutable historical snapshot. To update results, regenerate the report and deploy the new commit. Hosting is not live training, a database, or a connected store feed.
+## Reproduce the models
 
-## Reproduce the analysis
-
-The expected layout outside the repository is:
+Place the supplied datasets outside the repository:
 
 ```text
 DATA_ROOT/
@@ -42,31 +57,19 @@ DATA_ROOT/
 ```powershell
 python -m pip install -r requirements.txt
 python pipeline/train.py --data-root ..
+python pipeline/build_market.py --data-root ..
 npm test
 npm run build
 ```
 
-Training may take several minutes to read the million-row workbook. The pipeline reads **both** sheets, records SHA-256 fingerprints and actual row counts, and writes `public/data/report.json`. CSV encoding for cities and wholesale is Latin-1; marketing is tab-delimited. Original files remain untouched. A different library version/platform can change numerical results; generated reports record the environment and seed.
+`train.py` reproduces the preserved Version 1 academic report. `build_market.py` produces the current merchandise catalogue, market series, analogue model and relevant evaluation. Both read raw files without modifying them. The market report records workbook and pipeline SHA-256 fingerprints. Original source records and direct customer identifiers are not served.
 
-## What each dataset does
+## Upload behavior
 
-- **Online Retail II:** GBP gross positive sales, RFM KMeans, cohort retention, exact two-product basket associations, chronological forecast baselines.
-- **Online Shoppers Intention:** independent session purchase classification. Deduplicated stratified train/validation/test split, prevalence baseline, logistic regression and random forest. Browser inference uses the evaluated logistic regression coefficients.
-- **Wholesale Customers:** separate KMeans profiles on six spending columns, with PCA visualization. Channel and Region are not clustering features.
-- **Marketing Campaign:** descriptive spending and response summaries; no unsupported prospective response model.
-- **Store sales:** separate region sales/profit summary and Year versus Sales Date quality check. Provenance/currency unverified.
-- **Cities and pincodes:** coverage counts and provenance. There is no trained store-location recommendation: these files do not supply rent, competition, footfall, or success labels.
+Required columns: OrderID, ProductCode, ProductName, Date (ISO YYYY-MM-DD), Quantity, UnitPrice, Country. A downloadable template and familiar column aliases are supported. One selected currency per file. Limits: 10 MB and 50,000 rows; first XLSX worksheet only; CSV or XLSX, not legacy XLS. Exact duplicate business rows are removed; invalid rows are counted; returns stay separate. Uploaded catalogue prices use recorded revenue / recorded units. Launch scenarios on uploaded data have **no independent accuracy claim**. Forecast models are not automatically refitted to private files.
 
-There are no shared customer identifiers across these populations. They are never joined. Store figures are never mixed with GBP transaction revenue.
+Files stay in the active browser tab and disappear on refresh. No server upload, cloud storage, authentication or persistent customer database is implied. Replacing the workspace clears the shortlist and scenario to prevent source mixing.
 
-## Transparent methodology
+## Tests
 
-See [docs/METHODOLOGY.md](docs/METHODOLOGY.md) for preprocessing, evaluation, decisions, limitations, and acceptance criteria. All displayed metrics can be traced to `pipeline/train.py`. The evaluation view distinguishes validation from held-out testing and descriptive metrics from predictive evidence.
-
-## Privacy and publication
-
-Only aggregates, anonymous cluster projection points, and model coefficients are served. Raw workbook/CSV files and customer names, IDs, dates of birth are excluded from Git and deployment. Source schemas may name sensitive fields, but record values are not published. This is a public research dashboard with no login, uploads, or persistent visitor records. Real customer datasets require a separate access-control and data-retention design before use.
-
-## Verification
-
-`npm test` checks financial reconciliation, classification split/confusion totals, exact sklearn-to-JavaScript probability parity, forecast time boundaries/model selection, cohort rates, and safe anonymous cluster output. No automated tests claim business uplift or future accuracy.
+Automated checks cover canonical product identity, financial reconciliation, selection/time boundaries, exact Python/browser analogue parity, unsupported-query abstention, scenario arithmetic, upload parsing/validation and workspace isolation. Legacy numerical checks remain to protect the separately labeled academic report. Browser QA checks actual navigation, form behavior and upload switching.

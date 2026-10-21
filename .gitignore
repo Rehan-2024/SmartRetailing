@@ -7,3 +7,4 @@ dist/
 *.csv
 .env*
 artifacts/
+public/vendor/

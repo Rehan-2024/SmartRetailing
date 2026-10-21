@@ -63,7 +63,7 @@ The notebook embeds the full Python implementations; it does not hide training b
 
 ## Run in Colab
 1. Select **Runtime → Run all** on a CPU runtime.
-2. In the upload cell, select the three verified UCI files together. Alternatively choose `DATA_MODE = "drive"` and configure `DRIVE_DATA_ROOT`.
+2. The notebook defaults to `DATA_MODE = "drive"`. Mount the Google account containing `MyDrive/SmartRetailData`. Alternatively choose `DATA_MODE = "upload"` and select the three verified UCI inputs.
 3. Let both training pipelines finish. The million-row workbook is read twice; memory/runtime requirements depend on the selected Colab runtime.
 4. Inspect the Model Lab sections, assertions and limitations. The final cell offers a ZIP download of reports and source-fingerprint metadata.
 
@@ -114,12 +114,12 @@ print({"python": platform.python_version(), "numpy": np.__version__,
 ''')
 md('''## 3. Select your data
 
-Files: `online_retail_II.xlsx`, `online_shoppers_intention.csv`, `Wholesale customers data.csv`. Exact official-file hashes are enforced below. All other supplied datasets are excluded.
+All seven supplied files are stored in [SmartRetailData on Google Drive](https://drive.google.com/drive/folders/1cp5PzhIxOnkND4waySrPrOR3vw9fC-L7). The mounted path is `/content/drive/MyDrive/SmartRetailData`. Only `online_retail_II.xlsx`, `online_shoppers_intention.csv`, and `Wholesale customers data.csv` are required model inputs. Exact official-file hashes are enforced below. The other four files remain excluded from calculations.
 
 Uploads are placed in the expected source folders. Drive mode expects those folders already present, as in the project README. No dataset is downloaded from an unverified third-party source.
 ''')
 code('''
-DATA_MODE = "upload" if IN_COLAB else "local"  # upload | drive | local
+DATA_MODE = "drive" if IN_COLAB else "local"  # drive | upload | local
 DRIVE_DATA_ROOT = "/content/drive/MyDrive/SmartRetailData"
 DATA_ROOT = Path("/content/retail_data") if IN_COLAB else Path(os.environ.get("SMART_RETAIL_DATA_ROOT", str(Path.cwd().parent)))
 OUTPUT_ROOT = Path("/content/smartretail_results") if IN_COLAB else Path.cwd() / "artifacts" / "colab-run"
@@ -127,11 +127,17 @@ FILE_LAYOUT = {
     "online_retail_II.xlsx": "transactions/online_retail_II.xlsx",
     "online_shoppers_intention.csv": "digital/online_shoppers_intention.csv",
     "Wholesale customers data.csv": "Wholesale customers data.csv",
+    "marketing_campaign.csv": "marketing_campaign.csv",
+    "store_sales_data (2).csv": "store/store_sales_data (2).csv",
+    "geolocations-indian-cities.csv": "geo/geolocations-indian-cities.csv",
+    "Pincode_Dataset.csv": "geo/Pincode_Dataset.csv",
 }
+TRAINING_FILES = ["online_retail_II.xlsx", "online_shoppers_intention.csv", "Wholesale customers data.csv"]
 if IN_COLAB and DATA_MODE == "drive":
     from google.colab import drive
     drive.mount("/content/drive")
     DATA_ROOT = Path(DRIVE_DATA_ROOT)
+    OUTPUT_ROOT = Path("/content/drive/MyDrive/SmartRetailResults")
 elif IN_COLAB and DATA_MODE == "upload":
     from google.colab import files
     uploaded = files.upload()
@@ -141,7 +147,7 @@ elif IN_COLAB and DATA_MODE == "upload":
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(uploaded[name])
     del uploaded
-missing = [str(DATA_ROOT / relative) for relative in FILE_LAYOUT.values() if not (DATA_ROOT / relative).is_file()]
+missing = [str(DATA_ROOT / FILE_LAYOUT[name]) for name in TRAINING_FILES if not (DATA_ROOT / FILE_LAYOUT[name]).is_file()]
 if missing:
     raise FileNotFoundError("Missing required source files:\\n" + "\\n".join(missing))
 def require_verified(root, names):
@@ -157,6 +163,9 @@ SAME_WORKBOOK = actual_sha == REFERENCE_RESULTS["sourceSHA256"]
 print("Input directory:", DATA_ROOT)
 print("Matches original workbook bytes:", SAME_WORKBOOK)
 print("Outputs:", OUTPUT_ROOT)
+for name, relative in FILE_LAYOUT.items():
+    status = "verified model input" if name in TRAINING_FILES else "archived only; excluded from models"
+    print(f"{relative}: exists={(DATA_ROOT/relative).is_file()} | {status}")
 ''')
 md('''## 4. Full implementation: Version 1 analytical models
 

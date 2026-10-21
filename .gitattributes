@@ -1,0 +1,3 @@
+# Dataset hashes require original bytes, including line endings and encoding.
+datasets/*.csv -text
+datasets/**/*.csv -text

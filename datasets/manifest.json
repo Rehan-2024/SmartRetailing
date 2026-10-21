@@ -1,0 +1,47 @@
+{
+  "files": [
+    {
+      "file": "digital/online_shoppers_intention.csv",
+      "bytes": 1072063,
+      "sha256": "b3055ee355f59134d851d32641183cb4a8b45def7124d2f50442a042f358e0d9",
+      "status": "verified-exact",
+      "license": "CC BY 4.0"
+    },
+    {
+      "file": "Wholesale customers data.csv",
+      "bytes": 15021,
+      "sha256": "c3d018c643565b85cee733c4a2ac76dd76e080e857cb23f0ccfcc2e15a6c17ef",
+      "status": "verified-exact",
+      "license": "CC BY 4.0"
+    },
+    {
+      "file": "marketing_campaign.csv",
+      "bytes": 220188,
+      "sha256": "cd0affa36b1b981e80ba0e27767e9b3ab723f7a3dba948f722af81abc6b990ea",
+      "status": "excluded-unverified",
+      "license": null
+    },
+    {
+      "file": "store/store_sales_data (2).csv",
+      "bytes": 22204060,
+      "sha256": "df1dd4a0d6bd486d34499e87b249e875f2a03bc407f5ffdddddf34bea80e727e",
+      "status": "excluded-unverified",
+      "license": null
+    },
+    {
+      "file": "geo/geolocations-indian-cities.csv",
+      "bytes": 425190,
+      "sha256": "9e112742dfda58666fe32a8ec494fa21e604e534c850a18a9193f6ecac27c0e2",
+      "status": "excluded-unverified",
+      "license": null
+    },
+    {
+      "file": "geo/Pincode_Dataset.csv",
+      "bytes": 14136284,
+      "sha256": "9ea783f743804131ce8b369a35565f40ce81228788134c014d3faceacaa51957",
+      "status": "excluded-unverified",
+      "license": null
+    }
+  ],
+  "modelPolicy": "Only verified UCI inputs are used for training; all other CSVs are archive-only."
+}

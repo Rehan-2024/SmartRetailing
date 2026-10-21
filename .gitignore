@@ -5,6 +5,8 @@ dist/
 .vercel/
 *.xlsx
 *.csv
+!datasets/**/*.csv
+!datasets/*.csv
 .env*
 artifacts/
 public/vendor/

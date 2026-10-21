@@ -1,3 +1,5 @@
+> Historical V2 specification. The current source exclusions, nine-model comparison, reused-test disclosure and deployment regression guard supersede the corresponding sections below. See [the current audit](DATA-AUDIT-AND-ROBUSTNESS.md).
+
 # Version 2: decision and evaluation contract
 
 ## Purpose and scope

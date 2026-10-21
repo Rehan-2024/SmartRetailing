@@ -32,6 +32,6 @@ const last=d.retail.end.slice(0,7).split('-').map(Number);const lastMonth=last[0
 for(const c of d.cohorts){assert.equal(c.retention[0],1);const [year,month]=c.cohort.split('-').map(Number);for(const [i,v] of c.retention.entries()){assert.ok(v===null||(v>=0&&v<=1));assert.equal(v===null,year*12+month+i>lastMonth);}}
 });
 test('all source hashes present and exported report omits direct identifiers',()=>{
-assert.equal(d.lineage.length,7);for(const s of d.lineage)assert.match(s.sha256,/^[a-f0-9]{64}$/);
+assert.equal(d.lineage.length,3);for(const s of d.lineage)assert.match(s.sha256,/^[a-f0-9]{64}$/);
 for(const group of [d.segments,d.wholesale]){assert.equal(group.profiles.reduce((s,r)=>s+r.customers,0),group===d.segments?d.retail.customers:440);for(const p of group.points)assert.deepEqual(Object.keys(p).sort(),['cluster','x','y']);}
 });

@@ -1,0 +1,79 @@
+{
+  "checkedAt": "2026-10-21T10:36:54.256938+00:00",
+  "policy": "Only exact official UCI copies are accepted by the public benchmark pipelines. No generated or augmented training rows.",
+  "sources": [
+    {
+      "source": "retail",
+      "file": "transactions/online_retail_II.xlsx",
+      "status": "verified-exact",
+      "sha256": "bcbe73b35f5b7babf197fb0cb983a11f5d9ff929078d4aa53d171b1f2df2e980",
+      "officialMemberSHA256": "bcbe73b35f5b7babf197fb0cb983a11f5d9ff929078d4aa53d171b1f2df2e980",
+      "archiveSHA256": "572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb",
+      "bytes": 45622278,
+      "archiveURL": "https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip",
+      "sourceURL": "https://archive.ics.uci.edu/dataset/502/online+retail+ii",
+      "archiveMember": "online_retail_II.xlsx",
+      "license": "CC BY 4.0",
+      "attribution": "Chen, D. (2012)",
+      "doi": "10.24432/C5CG6D"
+    },
+    {
+      "source": "purchase",
+      "file": "digital/online_shoppers_intention.csv",
+      "status": "verified-exact",
+      "sha256": "b3055ee355f59134d851d32641183cb4a8b45def7124d2f50442a042f358e0d9",
+      "officialMemberSHA256": "b3055ee355f59134d851d32641183cb4a8b45def7124d2f50442a042f358e0d9",
+      "archiveSHA256": "2972e6184d3ad7beaaa831d9fc2b059dc3ee29df69d1ec593c466a5cd8485d14",
+      "bytes": 1072063,
+      "archiveURL": "https://archive.ics.uci.edu/static/public/468/online+shoppers+purchasing+intention+dataset.zip",
+      "sourceURL": "https://archive.ics.uci.edu/dataset/468/online+shoppers+purchasing+intention+dataset",
+      "archiveMember": "online_shoppers_intention.csv",
+      "license": "CC BY 4.0",
+      "attribution": "Sakar, C. & Kastro, Y. (2018)",
+      "doi": "10.24432/C5F88Q"
+    },
+    {
+      "source": "wholesale",
+      "file": "Wholesale customers data.csv",
+      "status": "verified-exact",
+      "sha256": "c3d018c643565b85cee733c4a2ac76dd76e080e857cb23f0ccfcc2e15a6c17ef",
+      "officialMemberSHA256": "c3d018c643565b85cee733c4a2ac76dd76e080e857cb23f0ccfcc2e15a6c17ef",
+      "archiveSHA256": "647e6a61683ed23f48c7b04e1e2be78835eca8758b32267603fc42a1479dbfb8",
+      "bytes": 15021,
+      "archiveURL": "https://archive.ics.uci.edu/static/public/292/wholesale+customers.zip",
+      "sourceURL": "https://archive.ics.uci.edu/dataset/292/wholesale+customers",
+      "archiveMember": "Wholesale customers data.csv",
+      "license": "CC BY 4.0",
+      "attribution": "Cardoso, M. (2013)",
+      "doi": "10.24432/C5030X"
+    },
+    {
+      "file": "marketing_campaign.csv",
+      "status": "excluded-unverified",
+      "exists": true,
+      "sha256": "cd0affa36b1b981e80ba0e27767e9b3ab723f7a3dba948f722af81abc6b990ea",
+      "reason": "Real-world origin and redistribution license of this exact file are unverified. Excluded from training, descriptive outputs and notebook inputs; this does not prove it is synthetic."
+    },
+    {
+      "file": "store/store_sales_data (2).csv",
+      "status": "excluded-unverified",
+      "exists": true,
+      "sha256": "df1dd4a0d6bd486d34499e87b249e875f2a03bc407f5ffdddddf34bea80e727e",
+      "reason": "Real-world origin and redistribution license of this exact file are unverified. Excluded from training, descriptive outputs and notebook inputs; this does not prove it is synthetic."
+    },
+    {
+      "file": "geo/geolocations-indian-cities.csv",
+      "status": "excluded-unverified",
+      "exists": true,
+      "sha256": "9e112742dfda58666fe32a8ec494fa21e604e534c850a18a9193f6ecac27c0e2",
+      "reason": "Real-world origin and redistribution license of this exact file are unverified. Excluded from training, descriptive outputs and notebook inputs; this does not prove it is synthetic."
+    },
+    {
+      "file": "geo/Pincode_Dataset.csv",
+      "status": "excluded-unverified",
+      "exists": true,
+      "sha256": "9ea783f743804131ce8b369a35565f40ce81228788134c014d3faceacaa51957",
+      "reason": "Real-world origin and redistribution license of this exact file are unverified. Excluded from training, descriptive outputs and notebook inputs; this does not prove it is synthetic."
+    }
+  ]
+}

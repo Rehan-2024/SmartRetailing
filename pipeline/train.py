@@ -90,7 +90,7 @@ def classification(source):
         'parityCases':[{'input':row.to_dict(),'probability':float(lp.predict_proba(pd.DataFrame([row]))[0,1])} for _,row in xt.head(4).iterrows()]}
     return {'rawRows':raw,'rows':len(X),'duplicatesRemoved':raw-len(X),'positiveRate':float(y.mean()),'split':{'train':len(xtr),'validation':len(xv),'test':len(xt)},'seed':SEED,'selected':selected,'threshold':threshold,'validation':val,'test':evaluation,'calibration':calibration,'importance':[{'feature':c,'averagePrecisionDrop':float(v)} for c,v in sorted(zip(X.columns,importance.importances_mean),key=lambda a:-a[1])],
         'excluded':['Revenue (target)','PageValues (unverified pre-purchase availability)'],
-        'protocol':'Stratified 60/20/20 split after deduplication. Preprocessing fits training only. Model selected by validation average precision; threshold selected by validation F1. Test used once after selection. No refit after test.',
+        'protocol':'Stratified 60/20/20 split after deduplication. Preprocessing fits training only. Model selected by validation average precision; threshold selected by validation F1. Previously inspected historical test reused for reproducibility; not a fresh external test. No refit after test.',
         'limitation':'Session-complete benchmark, not a real-time or causal conversion promise. No timestamps for temporal validation. Random split cannot measure future-period drift. Browser simulator uses evaluated logistic regression, even if random forest wins.', 'inference':inference}
 
 def forecast(daily):
@@ -112,11 +112,13 @@ def forecast(daily):
     for i,d in enumerate(dates):
         v=float(series.iloc[-7:].iloc[i%7]) if selected=='Last week' else float(series.iloc[-56:][series.iloc[-56:].index.dayofweek==d.dayofweek].mean())
         predictions.append({'date':str(d.date()),'revenue':v})
-    return {'selected':selected,'metrics':results,'future':predictions,'horizon':horizon,'validationOrigins':3,'testOrigins':1,'protocol':'Four expanding-window 28-day origins. First three origins select by MAE; fourth is the untouched chronological test. Aggregate metrics include all four and are labeled backtest metrics. Final forecast refits the selected rule on all history.',
+    return {'selected':selected,'metrics':results,'future':predictions,'horizon':horizon,'validationOrigins':3,'testOrigins':1,'protocol':'Four expanding-window 28-day origins. First three origins select by MAE; fourth is the reused chronological test benchmark, previously inspected during development. Aggregate metrics include all four and are labeled backtest metrics. Final forecast refits the selected rule on all history.',
         'limitation':'Historical gross-sales planning baseline; the final source day may be partial. Zero-filled dates assume no recorded sales. No causal, promotion, holiday, or prediction-interval model. Forecast follows the historical dataset, not today.'}
 
 def main(root,out):
-    started=time.time(); files=[('retail','transactions/online_retail_II.xlsx'),('purchase','digital/online_shoppers_intention.csv'),('wholesale','Wholesale customers data.csv'),('marketing','marketing_campaign.csv'),('store','store/store_sales_data (2).csv'),('cities','geo/geolocations-indian-cities.csv'),('pincodes','geo/Pincode_Dataset.csv')]
+    from verify_sources import require_verified
+    require_verified(root,['retail','purchase','wholesale'])
+    started=time.time(); files=[('retail','transactions/online_retail_II.xlsx'),('purchase','digital/online_shoppers_intention.csv'),('wholesale','Wholesale customers data.csv')]
     lineage=[]
     for name,file in files:
         path=root/file
@@ -164,19 +166,15 @@ def main(root,out):
     purchase=classification(pd.read_csv(root/files[1][1]))
     wholesale=pd.read_csv(root/files[2][1],encoding='latin1'); spending=[c for c in wholesale if c not in ['Channel','Region']]
     profiles,_=cluster(wholesale[spending])
-    marketing=pd.read_csv(root/files[3][1],sep='\t'); spend=[c for c in marketing if c.startswith('Mnt')]
-    store=pd.read_csv(root/files[4][1]); cities=pd.read_csv(root/files[5][1],encoding='latin1'); pins=pd.read_csv(root/files[6][1])
-    for item,df in zip(lineage,[retail,pd.read_csv(root/files[1][1]),wholesale,marketing,store,cities,pins]):
+    for item,df in zip(lineage,[retail,pd.read_csv(root/files[1][1]),wholesale]):
         item['rows']=raw if item['source']=='retail' else len(df); item['columns']=list(df.columns); item['missingCells']=int(df.isna().sum().sum())
     code_hash=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     report={'runId':hashlib.sha256((''.join(x['sha256'] for x in lineage)+code_hash).encode()).hexdigest()[:12], 'pipelineSHA256':code_hash, 'generatedAt':datetime.now(timezone.utc).isoformat(),'seed':SEED,
       'environment':{'python':platform.python_version(),'pandas':pd.__version__,'sklearn':sklearn.__version__},'lineage':lineage,
       'retail':{'currency':'GBP','start':str(valid.InvoiceDate.min()),'end':str(valid.InvoiceDate.max()),'rawRows':raw,'duplicatesRemoved':dup,'cleanRows':len(valid),'excludedAfterDedup':len(retail)-len(valid),'missingCustomerRows':int(valid['Customer ID'].isna().sum()),'returnRows':len(returns),'returnValue':float((returns.Quantity*returns.Price).sum()),'revenue':float(valid.revenue.sum()),'orders':int(valid.Invoice.nunique()),'customers':int(identified['Customer ID'].nunique()),'units':int(valid.Quantity.sum()),'aov':float(valid.revenue.sum()/valid.Invoice.nunique()),'daily':records(daily),'monthly':records(monthly),
       'countries':records(valid.groupby('Country').revenue.sum().sort_values(ascending=False).head(15).rename('revenue').reset_index()),'products':records(valid.groupby('Description').agg(revenue=('revenue','sum'),units=('Quantity','sum')).sort_values('revenue',ascending=False).head(20).reset_index()),'definition':'Gross positive sales after exact-row deduplication; excludes cancellations, nonpositive quantity/price and invalid dates. Returns reported separately, not subtracted. Missing customer IDs retained in sales and excluded from customer analysis.'},
-      'segments':segments,'cohorts':cohorts,'basket':{'baskets':n,'minSupportCount':min_count,'minConfidence':.2,'rules':rules,'method':'Exact frequent 2-itemset counting across invoice baskets. Binary presence per invoice. Minimum support 0.5% (at least 20 invoices), confidence ≥20%, lift >1. Rules ranked by lift; top 80 published.','limitation':'Descriptive co-occurrence on full history. No held-out cross-sell uplift, multi-item antecedents, or causal recommendation claims.'},'purchase':purchase,'wholesale':profiles,
-      'forecast':forecast(daily),'marketing':{'rows':len(marketing),'responseRate':float(marketing.Response.mean()),'missingIncome':int(marketing.Income.isna().sum()),'spending':{c:float(marketing[c].mean()) for c in spend},'note':'Descriptive campaign response only; campaign timing is insufficient for an actionable response prediction claim.'},
-      'store':{'rows':len(store),'sales':float(store.Sales.sum()),'profit':float(store.Profit.sum()),'dateMismatches':int((pd.to_datetime(store['Sales Date']).dt.year!=store.Year).sum()),'regions':records(store.groupby('Region').agg(sales=('Sales','sum'),profit=('Profit','sum')).reset_index()),'note':'Separate supplied store dataset; currency and provenance unverified. Year is checked against Sales Date. Never combined with GBP transactions or used to train a location model.'},
-      'geography':{'cities':len(cities),'pincodeRows':len(pins),'note':'Reference coverage only. Postal offices are not unique retail catchments. No competition, rent, footfall, or location-success labels; no store-location score is calculated.'}}
+      'segments':segments,'cohorts':cohorts,'basket':{'baskets':n,'minSupportCount':min_count,'minConfidence':.2,'rules':rules,'method':'Exact frequent 2-itemset counting across invoice baskets. Binary presence per invoice. Minimum support 0.5% (at least 20 invoices), confidence >=20%, lift >1. Rules ranked by lift; top 80 published.','limitation':'Descriptive co-occurrence on full history. No held-out cross-sell uplift, multi-item antecedents, or causal recommendation claims.'},'purchase':purchase,'wholesale':profiles,
+      'forecast':forecast(daily)}
     out.mkdir(parents=True,exist_ok=True); (out/'report.json').write_text(json.dumps(clean_json(report),ensure_ascii=True,allow_nan=False),encoding='utf8')
     print(f'Finished in {time.time()-started:.1f}s. Report: {out / "report.json"}',flush=True)
 

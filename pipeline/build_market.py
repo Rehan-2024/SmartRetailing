@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor, ExtraTreesRegressor
 
 NON_PRODUCTS={'ADJUST','ADJUST2','AMAZONFEE','B','BANK CHARGES','C2','CRUK','D','DOT','M','PADS','POST','S','TEST001','TEST002'}
 STOP='a an the and or of for with in on to from by at is it this that set pack assorted'.split()
@@ -24,13 +24,22 @@ def safe(x):
     if isinstance(x,float) and not np.isfinite(x): return None
     return x
 
-def feature_matrix(units,origin,prices,first):
+def feature_matrix(units,origin,prices,first,orders=None,rich=False):
     last28=units[:,origin-28:origin].sum(1)
     prev28=units[:,origin-56:origin-28].sum(1)
     last84=units[:,origin-84:origin].sum(1)
     recent7=units[:,origin-7:origin].sum(1)
     active=(units[:,origin-84:origin]>0).sum(1)
-    return np.column_stack([np.log1p(last28),np.log1p(prev28),np.log1p(last84),np.log1p(recent7),active,np.maximum(0,origin-first),np.log1p(prices),np.full(len(prices),(origin%365)/365)])
+    base=np.column_stack([np.log1p(last28),np.log1p(prev28),np.log1p(last84),np.log1p(recent7),active,np.maximum(0,origin-first),np.log1p(prices),np.full(len(prices),(origin%365)/365)])
+    if not rich: return base
+    history=units[:,origin-84:origin]; last_sale=np.where((history>0).any(1),np.argmax((history>0)[:,::-1],axis=1),84)
+    # All aggregates end strictly before the prediction origin, including annual lag.
+    annual=units[:,origin-365:origin-337].sum(1) if origin>=365 else np.zeros(len(prices))
+    recent_orders=orders[:,origin-28:origin].sum(1); old_orders=orders[:,origin-84:origin-28].sum(1)
+    seasonal=2*np.pi*origin/365.25
+    return np.column_stack([base,np.log1p(units[:,origin-84:origin-56].sum(1)),np.log1p(history.max(1)),np.log1p(history.std(1)),last_sale,
+        np.log((last28+1)/(prev28+1)),np.log1p(recent_orders),np.log1p(old_orders),np.log1p(last28/(recent_orders+1)),np.log1p(annual),
+        np.full(len(prices),origin>=365),np.full(len(prices),np.sin(seasonal)),np.full(len(prices),np.cos(seasonal))])
 
 def baseline_predictions(u,o):
     a=u[:,o-28:o].sum(1); b=u[:,o-56:o-28].sum(1)
@@ -38,40 +47,68 @@ def baseline_predictions(u,o):
 
 def metrics(actual,pred):
     error=np.abs(actual-pred)
-    return {'mae':float(error.mean()),'wape':float(error.sum()/max(actual.sum(),1)),'rmse':float(np.sqrt(((actual-pred)**2).mean())),'rows':len(actual)}
+    return {'mae':float(error.mean()),'wape':float(error.sum()/actual.sum()) if actual.sum()>0 else None,'rmse':float(np.sqrt(((actual-pred)**2).mean())),'rows':len(actual)}
 
-def demand_benchmark(units,orders,prices):
+def demand_benchmark(units,orders,prices,countries=None,stress=True):
     n,days=units.shape; first=np.argmax(units>0,axis=1); evaluation=list(range(days-112,days,28))
-    train_origins=list(range(112,evaluation[0]-27,28)); xx=[]; yy=[]
+    train_origins=list(range(112,evaluation[0]-27,28)); xx=[]; yy=[]; rich_x=[]
     def eligible(o): return (first<=o-84)&(orders[:,o-84:o].sum(1)>=10)
     for o in train_origins:
-        mask=eligible(o); xx.append(feature_matrix(units,o,prices,first)[mask]); yy.append(units[mask,o:o+28].sum(1))
-    x=np.concatenate(xx); y=np.concatenate(yy)
+        mask=eligible(o); xx.append(feature_matrix(units,o,prices,first)[mask]); rich_x.append(feature_matrix(units,o,prices,first,orders,True)[mask]); yy.append(units[mask,o:o+28].sum(1))
+    x=np.concatenate(xx); y=np.concatenate(yy); xr=np.concatenate(rich_x)
     models={
         'Gradient boosting (log units)':HistGradientBoostingRegressor(max_iter=160,max_leaf_nodes=15,l2_regularization=5,random_state=42),
-        'Gradient boosting (Poisson)':HistGradientBoostingRegressor(loss='poisson',max_iter=160,max_leaf_nodes=15,l2_regularization=10,random_state=42)}
-    for name,model in models.items(): model.fit(x,np.log1p(y) if 'log units' in name else y)
+        'Gradient boosting (Poisson)':HistGradientBoostingRegressor(loss='poisson',max_iter=160,max_leaf_nodes=15,l2_regularization=10,random_state=42),
+        'History boosting (absolute error)':HistGradientBoostingRegressor(loss='absolute_error',max_iter=240,max_leaf_nodes=15,l2_regularization=10,random_state=42),
+        'History boosting (log units)':HistGradientBoostingRegressor(max_iter=240,max_leaf_nodes=15,l2_regularization=10,random_state=42),
+        'History boosting (Poisson)':HistGradientBoostingRegressor(loss='poisson',max_iter=240,max_leaf_nodes=15,l2_regularization=20,random_state=42),
+        'History extra trees':ExtraTreesRegressor(n_estimators=160,min_samples_leaf=8,max_features=.8,n_jobs=2,random_state=42)}
+    for name,model in models.items(): model.fit(xr if name.startswith('History') else x,np.log1p(y) if 'log units' in name else y)
     results={name:[] for name in list(baseline_predictions(units,evaluation[0]))+list(models)}; folds=[]
     for o in evaluation:
         mask=eligible(o); actual=units[mask,o:o+28].sum(1); pred=baseline_predictions(units,o)
         for name,model in models.items():
-            values=model.predict(feature_matrix(units,o,prices,first)); pred[name]=np.maximum(0,np.expm1(values) if 'log units' in name else values)
+            values=model.predict(feature_matrix(units,o,prices,first,orders,name.startswith('History'))); pred[name]=np.maximum(0,np.expm1(values) if 'log units' in name else values)
         for name in results: results[name].append((actual,pred[name][mask]))
         folds.append({'originIndex':o,'rows':int(mask.sum()),'role':['validation','validation','calibration','test'][len(folds)]})
-    selected=min(results,key=lambda name:sum(np.abs(a-p).sum() for a,p in results[name][:2]))
+    validation_winner=min(results,key=lambda name:sum(np.abs(a-p).sum() for a,p in results[name][:2]))
+    selected=validation_winner
+    release={'incumbent':'Gradient boosting (log units)','promoted':False,'reason':'Seasonal stress run: selection uses its earlier validation windows only.'}
+    if stress:
+        # This is a release regression guard on an already inspected benchmark,
+        # explicitly NOT a claim that deployment selection has an untouched test.
+        challenger=metrics(*results[validation_winner][-1]); incumbent=metrics(*results[release['incumbent']][-1])
+        passed=challenger['wape']<=incumbent['wape'] and challenger['rmse']<=incumbent['rmse']
+        if not passed: selected=release['incumbent']
+        release.update(promoted=bool(passed and selected!=release['incumbent']),reason='Validation winner promoted only if reused benchmark WAPE and RMSE do not regress against incumbent. Challenger failed; incumbent retained.' if not passed else 'Validation winner passes reused-benchmark non-regression guard. Independent future validation is still required.')
     cal_a,cal_p=results[selected][2]; residual=(cal_a-cal_p)/(cal_p+1)
     qlo,qhi=np.quantile(residual,[.1,.9]); test_a,test_p=results[selected][3]
     low=np.maximum(0,test_p+qlo*(test_p+1)); high=np.maximum(0,test_p+qhi*(test_p+1))
     final=baseline_predictions(units,days)
     for name,m in models.items():
-        v=m.predict(feature_matrix(units,days,prices,first)); final[name]=np.maximum(0,np.expm1(v) if 'log units' in name else v)
+        v=m.predict(feature_matrix(units,days,prices,first,orders,name.startswith('History'))); final[name]=np.maximum(0,np.expm1(v) if 'log units' in name else v)
     forecast=final[selected]; supported=eligible(days)
     summary=[]
     for name in results:
         va=np.concatenate([r[0] for r in results[name][:2]]); vp=np.concatenate([r[1] for r in results[name][:2]])
         summary.append({'model':name,'validation':metrics(va,vp),'test':metrics(*results[name][3])})
-    return {'selected':selected,'candidates':summary,'folds':folds,'trainRows':len(y),'trainLatestLabelIndex':train_origins[-1]+27,'coverage':float(((test_a>=low)&(test_a<=high)).mean()),'intervalNominal':.8,'calibrationRows':len(cal_a),'testPoints':[{'actual':float(a),'predicted':float(p)} for a,p in zip(test_a[:200],test_p[:200])],
-        'protocol':'Five candidates. Two chronological 28-day validation windows select by total absolute unit error. Third window calibrates a pooled residual band. Fourth is untouched final test. Training labels finish before validation. Eligibility: ≥84 days of history and ≥10 orders in the preceding 84 days. No hyperparameters changed after seeing the test.',
+    o=evaluation[-1]; mask=eligible(o); recent=units[mask,o-28:o].sum(1); activity=(units[mask,o-84:o]>0).sum(1)
+    baseline=results['Last 28 days'][-1][1]; cases=[]
+    slices=[('No subsequent sales',test_a==0),('Subsequent positive sales',test_a>0),('Low recent volume (≤50 units)',recent<=50),('Medium recent volume (51–250)',(recent>50)&(recent<=250)),('High recent volume (>250)',recent>250),('Intermittent (≤12 active days / 84)',activity<=12),('Frequent (>12 active days / 84)',activity>12)]
+    if countries is not None:
+        uk=np.asarray(countries)[mask]=='United Kingdom'; slices.extend([('United Kingdom',uk),('Other recorded countries',~uk)])
+    for label,subset in slices:
+        if subset.any(): cases.append({'case':label,'selected':metrics(test_a[subset],test_p[subset]),'baseline':metrics(test_a[subset],baseline[subset]),'bandCoverage':float(((test_a[subset]>=low[subset])&(test_a[subset]<=high[subset])).mean())})
+    window_metrics=[{'role':f['role'],'originIndex':f['originIndex'],'selected':metrics(*results[selected][i]),'baseline':metrics(*results['Last 28 days'][i])} for i,f in enumerate(folds)]
+    temporal=[]
+    if stress:
+        for end in [days-168,days-112,days-56]:
+            audit,*_=demand_benchmark(units[:,:end],orders[:,:end],prices,countries,False)
+            winner=next(r for r in audit['candidates'] if r['model']==audit['selected'])
+            base=next(r for r in audit['candidates'] if r['model']=='Last 28 days')
+            temporal.append({'endIndex':end-1,'selectedModel':audit['selected'],'selected':winner['test'],'baseline':base['test'],'bandCoverage':audit['coverage'],'trainLatestLabelIndex':audit['trainLatestLabelIndex'],'testOriginIndex':audit['folds'][-1]['originIndex']})
+    return {'selected':selected,'validationWinner':validation_winner,'releaseDecision':release,'candidates':summary,'folds':folds,'cases':cases,'windowMetrics':window_metrics,'temporalStress':temporal,'trainRows':len(y),'trainLatestLabelIndex':train_origins[-1]+27,'coverage':float(((test_a>=low)&(test_a<=high)).mean()),'intervalNominal':.8,'calibrationRows':len(cal_a),'testPoints':[{'actual':float(a),'predicted':float(p)} for a,p in zip(test_a[:200],test_p[:200])],
+        'protocol':'Nine fixed candidates. Two chronological 28-day validation windows select the challenger by total absolute unit error. Third window calibrates a pooled residual band. Fourth is a REUSED historical test benchmark, previously inspected during project development; it is not an untouched external test. A separate deployment regression guard retains the incumbent if challenger benchmark WAPE or RMSE worsens. This release decision uses inspected benchmark results and is not pure validation-only selection. Training labels finish before validation. Eligibility: ≥84 days history and ≥10 preceding-84-day orders. Rich features add lagged orders, inter-sale gaps, volatility, trend and annual sales. All inputs end before origin.',
         'limitation':'One retailer, recorded sales rather than unconstrained demand; stockouts, distribution and promotions are unknown. Residual bands are pooled empirical bands, not guaranteed future coverage.'},forecast,np.maximum(0,forecast+qlo*(forecast+1)),np.maximum(0,forecast+qhi*(forecast+1)),supported
 
 def analogues(vectorizer,matrix,descriptions,prices,target_desc,target_price,k=8,exclude=None):
@@ -140,6 +177,8 @@ def cold_start_benchmark(sales,dates):
         'limitation':'First recorded sale is not a verified launch. Products with no sales never enter this dataset. Metadata must represent what was known before launch. No advertising, availability, distribution, competition or market-size features exist. This is not a launch-success probability or a causal expansion forecast.'}
 
 def main(root,out):
+    from verify_sources import require_verified
+    require_verified(root,['retail'])
     path=root/'transactions/online_retail_II.xlsx'; print('Reading source workbook for product-market build...',flush=True)
     frame=pd.concat(pd.read_excel(path,sheet_name=None).values(),ignore_index=True); raw=len(frame); duplicates=int(frame.duplicated().sum()); frame=frame.drop_duplicates()
     frame.InvoiceDate=pd.to_datetime(frame.InvoiceDate,errors='coerce'); frame.StockCode=frame.StockCode.astype(str).str.strip(); frame.Description=frame.Description.astype('string').str.strip()
@@ -158,8 +197,10 @@ def main(root,out):
     grouped=sales.groupby(['StockCode','Country','date']).agg(units=('Quantity','sum'),orders=('Invoice','nunique'))
     for (code,country,day),r in grouped.iterrows():
         i=pair_idx[(code,country)]; j=day_idx[day]; units[i,j]=r['units']; orders[i,j]=r['orders']
-    print(f'Evaluating five demand candidates across {len(pairs)} product-country series...',flush=True)
-    demand,pred,lo,hi,support=demand_benchmark(units,orders,pairs.price.to_numpy())
+    print(f'Evaluating nine demand candidates across {len(pairs)} product-country series...',flush=True)
+    demand,pred,lo,hi,support=demand_benchmark(units,orders,pairs.price.to_numpy(),pairs.Country.to_numpy())
+    for case in demand['temporalStress']:
+        case['testStart']=str(dates[case['testOriginIndex']].date()); case['testEnd']=str(dates[case['endIndex']].date())
     for f in demand['folds']:
         o=f['originIndex']; f['historyEnd']=str(dates[o-1].date()); f['forecastStart']=str(dates[o].date()); f['forecastEnd']=str(dates[o+27].date())
     print('Evaluating genuinely withheld catalogue-entry products...',flush=True)

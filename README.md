@@ -6,7 +6,7 @@ An explainable product–market tool, ready for Vercel. Seven pages focus on bus
 
 [Open the full model implementation and results in Google Colab](https://colab.research.google.com/github/Rehan-2024/SmartRetailing/blob/main/notebooks/SmartRetail_All_Models_Colab.ipynb).
 
-The self-contained notebook embeds both actual Python pipelines, executed result tables, ROC/precision–recall curves, confusion heatmaps, cluster profiles/PCA, basket rules, cohort retention, forecast comparisons, chronological checks, new-product scenarios and limitations. Saved outputs are from a local full execution; rerun in Colab by uploading the seven original datasets or selecting your Drive folder. The final cell exports derived result artifacts as a ZIP.
+The self-contained notebook embeds both actual Python pipelines, executed result tables, ROC/precision–recall curves, confusion heatmaps, cluster profiles/PCA, basket rules, cohort retention, forecast comparisons, chronological checks, new-product scenarios and limitations. Saved outputs are from a local full execution; rerun in Colab by uploading the three verified UCI datasets or selecting your Drive folder. The final cell exports derived result artifacts as a ZIP.
 
 Notebook creation/validation tools are optional development utilities: `python -m pip install nbformat nbclient ipykernel matplotlib`; `python scripts/create_colab.py` regenerates an unexecuted notebook and `python scripts/execute_colab.py` fills it with genuine local results. They are not required for the web deployment.
 
@@ -17,7 +17,7 @@ Notebook creation/validation tools are optional development utilities: `python -
 - **Market Explorer:** compare products in an observed country with minimum-order filters.
 - **Compare & Export:** shortlist product–country pairs and download an evidence brief or comparison.
 - **Your Data:** read CSV/XLSX privately in the browser, validate records, and explicitly switch to an isolated company-data workspace. Product/market explorers, comparisons and analogue launch scenarios use the uploaded data. Uploaded data is not mixed with the benchmark.
-- **Model Lab:** five forecast candidates, chronological validation/calibration/test, actual-vs-predicted plot, interval coverage, held-out new-product cohorts, and same-case country baselines. Supporting Version 1 conversion results are separately labeled.
+- **Model Lab:** nine forecast candidates, chronological validation/calibration/test, actual-vs-predicted plot, interval coverage, held-out new-product cohorts, and same-case country baselines. Supporting Version 1 conversion results are separately labeled.
 - **Data & Methods:** visible cleaning, identity, formulas, fingerprints and limitations.
 
 ## Honest launch estimates
@@ -56,21 +56,18 @@ DATA_ROOT/
   transactions/online_retail_II.xlsx
   digital/online_shoppers_intention.csv
   Wholesale customers data.csv
-  marketing_campaign.csv
-  store/store_sales_data (2).csv
-  geo/geolocations-indian-cities.csv
-  geo/Pincode_Dataset.csv
 ```
 
 ```powershell
 python -m pip install -r requirements.txt
+python pipeline/verify_sources.py --data-root ..
 python pipeline/train.py --data-root ..
 python pipeline/build_market.py --data-root ..
 npm test
 npm run build
 ```
 
-`train.py` reproduces the preserved Version 1 academic report. `build_market.py` produces the current merchandise catalogue, market series, analogue model and relevant evaluation. Both read raw files without modifying them. The market report records workbook and pipeline SHA-256 fingerprints. Original source records and direct customer identifiers are not served.
+`train.py` reproduces the academic report using only the three verified sources. Both pipelines reject input hashes that differ from the audited official files. `build_market.py` produces the current merchandise catalogue, market series, analogue model and relevant evaluation. Both read raw files without modifying them. The market report records workbook and pipeline SHA-256 fingerprints. Original source records and direct customer identifiers are not served.
 
 ## Upload behavior
 
@@ -81,3 +78,11 @@ Files stay in the active browser tab and disappear on refresh. No server upload,
 ## Tests
 
 Automated checks cover canonical product identity, financial reconciliation, selection/time boundaries, exact Python/browser analogue parity, unsupported-query abstention, scenario arithmetic, upload parsing/validation and workspace isolation. Legacy numerical checks remain to protect the separately labeled academic report. Browser QA checks actual navigation, form behavior and upload switching.
+
+## Verified data and robustness audit
+
+See [the audit and model results](docs/DATA-AUDIT-AND-ROBUSTNESS.md) and [the machine-readable source manifest](public/data/sources.json). All three accepted local files exactly match official UCI archive members, with CC BY 4.0 attribution. The four campaign/store/geographic files are excluded because real-world origin and license of those exact files are unverified. Originals stay outside the repository. No generated or augmented rows enter training.
+
+Nine forecast candidates include extra trees and boosted models with strictly lagged order, activity, volatility, trend and annual-history features. Two validation windows select a challenger; an explicit release guard retains the existing model if the challenger worsens reused-benchmark WAPE or RMSE; a separate window calibrates bands. The final-period test was inspected in previous versions and is now explicitly labeled a reused historical benchmark. Three additional seasonal runs independently train/select from their preceding periods. Model Lab and Colab show volume, intermittent-sales, zero-sales, UK/non-UK and period breakdowns, including failures. WAPE is undefined when actual units sum to zero; it is never converted to an accuracy score.
+
+Run feature leakage and source rejection checks with `python -m unittest discover -s tests -p test_pipeline.py`. These small artificial fixtures verify software boundaries and never become model-training data.

@@ -11,6 +11,8 @@ legacy_path=ROOT/'pipeline/train.py'
 market_path=ROOT/'pipeline/build_market.py'
 legacy=legacy_path.read_text(encoding='utf-8-sig').split("if __name__=='__main__':")[0]
 market=market_path.read_text(encoding='utf-8-sig').split("if __name__=='__main__':")[0]
+legacy=legacy.replace('    from verify_sources import require_verified\n','')
+market=market.replace('    from verify_sources import require_verified\n','')
 legacy=legacy.replace('def main(root,out):','def build_legacy_report(root,out):')
 legacy=legacy.replace("hashlib.sha256(Path(__file__).read_bytes()).hexdigest()",'LEGACY_SCRIPT_SHA256')
 market=market.replace('def main(root,out):','def build_market_report(root,out):')
@@ -41,6 +43,7 @@ snapshot={
     'segments':{k:report['segments'][k] for k in ['selectedK','candidates','stabilityARI','profiles']},
     'wholesale':{k:report['wholesale'][k] for k in ['selectedK','candidates','stabilityARI','profiles']},
 }
+source_audit=json.loads((ROOT/'public/data/sources.json').read_text())
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
 commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
 cells=[]
@@ -54,13 +57,13 @@ md('''
 
 The notebook embeds the full Python implementations; it does not hide training behind an API or require cloning the repository. Saved outputs in the delivered file come from a full execution on the supplied datasets. Run it again with your copies to reproduce the analysis.
 
-**Models included:** five merchandise demand forecasters; new-product analogue matching with 5/8/12-neighbour comparison; purchase-intention prevalence/logistic/forest comparison; RFM and wholesale KMeans with PCA; basket rules; and the two Version 1 aggregate forecast baselines. All seven datasets are audited, but unrelated populations are never merged.
+**Models included:** nine merchandise demand forecasters; new-product analogue matching with 5/8/12-neighbour comparison; purchase-intention prevalence/logistic/forest comparison; RFM and wholesale KMeans with PCA; basket rules; and the two Version 1 aggregate forecast baselines. Three inputs match official UCI files byte-for-byte and have CC BY 4.0 licenses. Four unverified files are excluded from every calculation.
 
-**Important:** country ranking is a retrospective catalogue-entry benchmark, not a validated launch-success model. The country baseline was not beaten. Unit/revenue scenarios and similarity scores are not success probabilities. WAPE is an error measure, not “accuracy.” Marketing, store and geography files receive descriptive analysis only; this notebook does not invent campaign, city-demand or location models.
+**Important:** country ranking is a retrospective catalogue-entry benchmark, not a validated launch-success model. The country baseline was not beaten. Unit/revenue scenarios and similarity scores are not success probabilities. WAPE is an error measure, not “accuracy.” Marketing, store and geography files are excluded; this notebook does not invent campaign, city-demand or location models.
 
 ## Run in Colab
 1. Select **Runtime → Run all** on a CPU runtime.
-2. In the upload cell, select the seven original files together. Alternatively choose `DATA_MODE = "drive"` and configure `DRIVE_DATA_ROOT`.
+2. In the upload cell, select the three verified UCI files together. Alternatively choose `DATA_MODE = "drive"` and configure `DRIVE_DATA_ROOT`.
 3. Let both training pipelines finish. The million-row workbook is read twice; memory/runtime requirements depend on the selected Colab runtime.
 4. Inspect the Model Lab sections, assertions and limitations. The final cell offers a ZIP download of reports and source-fingerprint metadata.
 
@@ -68,13 +71,14 @@ Only upload files you are authorized to place in your Google Colab session. The 
 ''')
 md(f'''## 1. Provenance and project reference
 
-Embedded from project commit `{commit}`. The hashes below identify the original project scripts; notebook adaptation removes CLI entry points, renames the two `main` functions, and adds ROC/precision–recall diagnostics without changing training decisions. The notebook itself has different bytes from the scripts.
+Generated from the working copy based on project commit `{commit}`. The exact script SHA-256 hashes below identify the implementation, including changes made after that base commit; this is not a claim that the base commit already contains those changes. Notebook adaptation removes CLI entry points, renames the two `main` functions, embeds the source allowlist, and adds ROC/precision–recall diagnostics without changing training decisions. The notebook itself has different bytes from the scripts.
 
 Reference results are embedded so the file remains reviewable without an internet connection. They are **previous project-run results**, not newly executed output until the training cells finish.
 ''')
 code(f'''PROJECT_COMMIT = {commit!r}
 LEGACY_SCRIPT_SHA256 = {sha(legacy_path)!r}
 MARKET_SCRIPT_SHA256 = {sha(market_path)!r}
+SOURCE_AUDIT = {source_audit!r}
 REFERENCE_RESULTS = {snapshot!r}
 print("Project commit:", PROJECT_COMMIT)
 print("Saved project result timestamp:", REFERENCE_RESULTS["generatedAt"])
@@ -110,7 +114,7 @@ print({"python": platform.python_version(), "numpy": np.__version__,
 ''')
 md('''## 3. Select your data
 
-Files: `online_retail_II.xlsx`, `online_shoppers_intention.csv`, `Wholesale customers data.csv`, `marketing_campaign.csv`, `store_sales_data (2).csv`, `geolocations-indian-cities.csv`, `Pincode_Dataset.csv`.
+Files: `online_retail_II.xlsx`, `online_shoppers_intention.csv`, `Wholesale customers data.csv`. Exact official-file hashes are enforced below. All other supplied datasets are excluded.
 
 Uploads are placed in the expected source folders. Drive mode expects those folders already present, as in the project README. No dataset is downloaded from an unverified third-party source.
 ''')
@@ -123,10 +127,6 @@ FILE_LAYOUT = {
     "online_retail_II.xlsx": "transactions/online_retail_II.xlsx",
     "online_shoppers_intention.csv": "digital/online_shoppers_intention.csv",
     "Wholesale customers data.csv": "Wholesale customers data.csv",
-    "marketing_campaign.csv": "marketing_campaign.csv",
-    "store_sales_data (2).csv": "store/store_sales_data (2).csv",
-    "geolocations-indian-cities.csv": "geo/geolocations-indian-cities.csv",
-    "Pincode_Dataset.csv": "geo/Pincode_Dataset.csv",
 }
 if IN_COLAB and DATA_MODE == "drive":
     from google.colab import drive
@@ -144,6 +144,13 @@ elif IN_COLAB and DATA_MODE == "upload":
 missing = [str(DATA_ROOT / relative) for relative in FILE_LAYOUT.values() if not (DATA_ROOT / relative).is_file()]
 if missing:
     raise FileNotFoundError("Missing required source files:\\n" + "\\n".join(missing))
+def require_verified(root, names):
+    for name in names:
+        row=next(r for r in SOURCE_AUDIT["sources"] if r.get("source")==name)
+        digest=hashlib.sha256((root/row["file"]).read_bytes()).hexdigest()
+        if row["status"]!="verified-exact" or digest!=row["officialMemberSHA256"]:
+            raise ValueError(f"{name}: expected the audited exact UCI file; input rejected")
+require_verified(DATA_ROOT,["retail","purchase","wholesale"])
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 actual_sha = hashlib.sha256((DATA_ROOT / FILE_LAYOUT["online_retail_II.xlsx"]).read_bytes()).hexdigest()
 SAME_WORKBOOK = actual_sha == REFERENCE_RESULTS["sourceSHA256"]
@@ -167,7 +174,7 @@ print("Completed Version 1 analysis:", legacy_results["runId"])
 ''')
 md('''## 5. Source quality and boundaries
 
-The seven sources are independent. Anonymous customer rows contribute to sales, not RFM/cohorts. Gross positive-sales revenue excludes returns; it is not net accounting revenue. The store file has unverified provenance/currency and inconsistent date fields. Geographic coverage does not supply product-demand or location-success labels.
+The three verified sources are independent. Their hashes match the archived official UCI file bytes; source URLs, licenses and credits are embedded in SOURCE_AUDIT. Anonymous customer rows contribute to sales, not RFM/cohorts. Gross positive-sales revenue excludes returns; it is not net accounting revenue. Store, campaign and geographic files are excluded because their exact provenance/license is unverified; that is not proof that all four are synthetic. Geographic coverage does not supply product-demand or location-success labels.
 ''')
 code('''
 display(pd.DataFrame(legacy_results["lineage"])[["source", "file", "rows", "bytes", "missingCells", "sha256"]])
@@ -281,7 +288,7 @@ md('''## 10. Full implementation: current product–market models
 
 The following cell defines the complete current pipeline: merchandise cleaning, canonical identity, daily product-country matrices, three deterministic forecasting baselines, log-unit/Poisson gradient boosting, calibration, forward-only evaluation, type-guarded TF–IDF/price analogue matching, and withheld catalogue-entry cohorts.
 
-**Demand protocol:** training labels finish before validation; two 28-day validation windows select the model by absolute unit error; one calibration window fits an empirical residual band; one later test window measures generalization. No universal “accuracy” is calculated from WAPE.
+**Demand protocol:** training labels finish before validation; two 28-day validation windows select the challenger by absolute unit error; one calibration window fits an empirical residual band. The later reused historical test is a diagnostic, not an untouched external test. A disclosed deployment guard retains the incumbent if the challenger worsens known-benchmark WAPE or RMSE. Seasonal stress runs select from their own past validation windows. No universal “accuracy” is calculated from WAPE.
 
 **Country protocol:** three historical cohorts select neighbour count; a fourth is the final test. Each target is new to the recorded catalogue, and its sales outcomes are absent from analogue training. Prelaunch availability of the description/price is assumed. A first recorded sale is not proof of a true launch, and never-sold products are absent.
 ''')
@@ -303,10 +310,11 @@ for candidate in demand["candidates"]:
     for partition in ["validation","test"]:
         forecast_rows.append({"model":candidate["model"],"partition":partition,**candidate[partition]})
 forecast_table=pd.DataFrame(forecast_rows)
-print("Selected on validation:",demand["selected"])
+print("Validation winner:",demand["validationWinner"],"| Deployed:",demand["selected"])
+print(demand["releaseDecision"])
 display(forecast_table)
 display(pd.DataFrame(demand["folds"]))
-fig,axes=plt.subplots(1,2,figsize=(14,4))
+fig,axes=plt.subplots(1,2,figsize=(16,6))
 test_table=forecast_table[forecast_table.partition=="test"]
 axes[0].barh(test_table.model,test_table.mae,color="#47795b")
 axes[0].set(title="Current demand models: final-test MAE",xlabel="Absolute error (units / pair / 28 days)")
@@ -417,19 +425,16 @@ else:
     print("No eligible country has sufficient active analogue evidence.")
 print("Ranges are analogue spreads, not statistical confidence intervals. Scenarios assume comparable distribution and exposure.")
 ''')
-md('''## 14. Descriptive sources — explicitly not extra trained models
+md('''## 14. Source authenticity and difficult forecasting cases
 
-Campaign response prevalence and spending, store consistency checks, and geographic coverage are descriptive outputs only. No joint customer identities, city-demand estimates, market-size labels or supervised churn labels are inferred from these files.
+Only exact official UCI copies feed calculations. No synthetic or augmented training rows are generated. Case slices can overlap. The final-period benchmark was inspected in previous project versions, so it cannot be claimed as a pristine external test. Additional seasonal stress runs retrain and select candidates independently using only earlier validation windows. They describe historical robustness, not future guarantees.
 ''')
 code('''
-display(pd.DataFrame({"marketingRows":[legacy_results["marketing"]["rows"]],
-                      "responseShare":[legacy_results["marketing"]["responseRate"]],
-                      "missingIncome":[legacy_results["marketing"]["missingIncome"]]}))
-display(pd.DataFrame(list(legacy_results["marketing"]["spending"].items()),columns=["Category","Mean recorded spend"]))
-display(pd.DataFrame(legacy_results["store"]["regions"]))
-print("Store Year/Sales Date mismatches:",legacy_results["store"]["dateMismatches"])
-print(legacy_results["store"]["note"])
-print(legacy_results["geography"])
+display(pd.DataFrame(SOURCE_AUDIT["sources"])[["file","status","sha256"]])
+case_rows=[{"case":r["case"],**r["selected"],"baselineMAE":r["baseline"]["mae"],"baselineWAPE":r["baseline"]["wape"],"bandCoverage":r["bandCoverage"]} for r in demand["cases"]]
+display(pd.DataFrame(case_rows))
+display(pd.DataFrame([{"testStart":r["testStart"],"testEnd":r["testEnd"],"model":r["selectedModel"],**r["selected"],"baselineWAPE":r["baseline"]["wape"],"bandCoverage":r["bandCoverage"]} for r in demand["temporalStress"]]))
+print(demand["protocol"])
 ''')
 md('''## 15. Verification and comparison with the saved project run
 
@@ -443,7 +448,7 @@ assert demand["trainLatestLabelIndex"]<demand["folds"][0]["originIndex"]
 assert [r["role"] for r in demand["folds"]]==["validation","validation","calibration","test"]
 for a,b in zip(demand["folds"],demand["folds"][1:]):assert a["forecastEnd"]<b["forecastStart"]
 expected=min(demand["candidates"],key=lambda m:m["validation"]["mae"])["model"]
-assert demand["selected"]==expected
+assert demand["validationWinner"]==expected
 for model in p["test"]:assert sum(map(sum,model["confusionMatrix"]))==p["split"]["test"]
 assert sum(p["split"].values())==p["rows"]
 assert cold["beatsCountryBaseline"]==bool(selected_cold.supported>=20 and selected_cold.topCountryHitRate>selected_cold.baselineHitRate)
@@ -459,9 +464,10 @@ md('''## 16. Export results
 
 The ZIP contains regenerated reports and scenario/metric tables, not raw datasets. Save the notebook from Colab separately if you want the new cell outputs preserved. Colab filesystem paths are temporary unless copied to your Drive.
 
-**Credits:** Online Retail II, Daqing Chen, UCI, DOI https://doi.org/10.24432/C5CG6D (CC BY 4.0). Online Shoppers Purchasing Intention and Wholesale Customers are independent UCI datasets. Supplemental file provenance is unverified. Read the project's V2 methodology for the full data and evaluation contract.
+**Credits:** Online Retail II, Daqing Chen, UCI, DOI https://doi.org/10.24432/C5CG6D (CC BY 4.0). Online Shoppers Purchasing Intention and Wholesale Customers are independent UCI datasets. Supplemental files are excluded; all three accepted source files exactly match official UCI downloads with CC BY 4.0 attribution. Read the project's V2 methodology for the full data and evaluation contract.
 ''')
 code('''
+(OUTPUT_ROOT/"source_audit.json").write_text(json.dumps(SOURCE_AUDIT,indent=2),encoding="utf8")
 classification_table.to_csv(OUTPUT_ROOT/"classification_metrics.csv",index=False)
 forecast_table.to_csv(OUTPUT_ROOT/"demand_forecast_metrics.csv",index=False)
 cold_table.to_csv(OUTPUT_ROOT/"new_product_benchmark.csv",index=False)

@@ -2,6 +2,14 @@
 
 An explainable product–market tool, ready for Vercel. Seven pages focus on business decisions instead of displaying every available dataset column.
 
+## Complete model notebook
+
+[Open the full model implementation and results in Google Colab](https://colab.research.google.com/github/Rehan-2024/SmartRetailing/blob/main/notebooks/SmartRetail_All_Models_Colab.ipynb).
+
+The self-contained notebook embeds both actual Python pipelines, executed result tables, ROC/precision–recall curves, confusion heatmaps, cluster profiles/PCA, basket rules, cohort retention, forecast comparisons, chronological checks, new-product scenarios and limitations. Saved outputs are from a local full execution; rerun in Colab by uploading the seven original datasets or selecting your Drive folder. The final cell exports derived result artifacts as a ZIP.
+
+Notebook creation/validation tools are optional development utilities: `python -m pip install nbformat nbclient ipykernel matplotlib`; `python scripts/create_colab.py` regenerates an unexecuted notebook and `python scripts/execute_colab.py` fills it with genuine local results. They are not required for the web deployment.
+
 ## What you can do
 
 - **Plan a launch:** describe a new product and planned unit price. Review and confirm comparable products before seeing country-level 28-day unit/revenue scenarios. Recognized product types must match. Unrelated or insufficient evidence triggers an explicit refusal to estimate.

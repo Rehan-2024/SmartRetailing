@@ -4,6 +4,8 @@ An explainable product–market tool, ready for Vercel. Seven pages focus on bus
 
 ## Simple presentation notebook
 
+For academic review, read the [full progress report and 40-question viva guide](docs/PROJECT-PROGRESS-AND-VIVA.md) or the [printable PDF](output/pdf/SmartRetail_Project_Progress_and_Viva.pdf). The report separates implemented workflows, measured results and remaining research gaps.
+
 [Open the clean training-and-results notebook in Colab](https://colab.research.google.com/github/Rehan-2024/SmartRetailing/blob/main/notebooks/SmartRetail_Presentation_Colab.ipynb). This shorter version is intended for an academic demonstration: verified real data, cleaning, chronological features, explicit model training, baseline comparison, three charts, case checks, a new-product example and honest limitations. It focuses on the core forecast rather than the unrelated supporting models. It defaults to the existing Drive folder and includes genuine executed outputs.
 
 Regenerate with `python scripts/create_presentation_colab.py`; execute with `python scripts/execute_colab.py --notebook notebooks/SmartRetail_Presentation_Colab.ipynb`.

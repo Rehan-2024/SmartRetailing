@@ -2,6 +2,12 @@
 
 An explainable product–market tool, ready for Vercel. Seven pages focus on business decisions instead of displaying every available dataset column.
 
+## Simple presentation notebook
+
+[Open the clean training-and-results notebook in Colab](https://colab.research.google.com/github/Rehan-2024/SmartRetailing/blob/main/notebooks/SmartRetail_Presentation_Colab.ipynb). This shorter version is intended for an academic demonstration: verified real data, cleaning, chronological features, explicit model training, baseline comparison, three charts, case checks, a new-product example and honest limitations. It focuses on the core forecast rather than the unrelated supporting models. It defaults to the existing Drive folder and includes genuine executed outputs.
+
+Regenerate with `python scripts/create_presentation_colab.py`; execute with `python scripts/execute_colab.py --notebook notebooks/SmartRetail_Presentation_Colab.ipynb`.
+
 ## Complete model notebook
 
 [Open the full model implementation and results in Google Colab](https://colab.research.google.com/github/Rehan-2024/SmartRetailing/blob/main/notebooks/SmartRetail_All_Models_Colab.ipynb).
